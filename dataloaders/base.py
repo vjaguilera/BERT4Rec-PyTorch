@@ -32,8 +32,8 @@ class AbstractDataloader(metaclass=ABCMeta):
                                                          args.test_negative_sampling_seed,
                                                          save_folder)
 
-        self.train_negative_samples = train_negative_sampler.get_negative_samples()
-        self.test_negative_samples = test_negative_sampler.get_negative_samples()
+        self.train_negative_samples = train_negative_sampler.get_negative_samples() #if self.code() != 'bert' else None
+        self.test_negative_samples = test_negative_sampler.get_negative_samples() #if self.code() !=  'bert' else None
 
     @classmethod
     @abstractmethod

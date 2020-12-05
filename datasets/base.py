@@ -1,5 +1,6 @@
 from .utils import *
 from config import RAW_DATASET_ROOT_FOLDER
+from .meli_data.datahandler import create_process_file
 
 import pandas as pd
 from tqdm import tqdm
@@ -20,6 +21,8 @@ class AbstractDataset(metaclass=ABCMeta):
         self.min_uc = args.min_uc
         self.min_sc = args.min_sc
         self.split = args.split
+        self.data_downloaded = args.data_downloaded
+        self.data_path = args.data_path
 
         assert self.min_uc >= 2, 'Need at least 2 ratings per user for validation and test'
 
@@ -66,7 +69,14 @@ class AbstractDataset(metaclass=ABCMeta):
             return
         if not dataset_path.parent.is_dir():
             dataset_path.parent.mkdir(parents=True)
-        self.maybe_download_raw_dataset()
+
+        if self.data_downloaded:
+            print("Moving downloaded dataset to created path")
+            print("Data location: ", self.data_path)
+            self.transfer_raw_dataset_to_path()
+        else:
+            self.maybe_download_raw_dataset()
+
         df = self.load_ratings_df()
         df = self.make_implicit(df)
         df = self.filter_triplets(df)
@@ -80,8 +90,34 @@ class AbstractDataset(metaclass=ABCMeta):
         with dataset_path.open('wb') as f:
             pickle.dump(dataset, f)
 
+    def transfer_raw_dataset_to_path(self):
+        """If data is already dowloaded, transfer it to the Data/<dataset> path"""
+        folder_path = self._get_rawdata_folder_path()
+        print("Folder path: ", folder_path)
+        if folder_path.is_dir() and len(os.listdir(folder_path)) != 0:
+            print('Raw data already exists. Skip transfering')
+            return
+        print(f"Extracting data from: {self.data_path}")
+        print(os.listdir(self.data_path))
+        if self.code() == 'meli':
+            print("Proceding to use Meli dataset handler")
+            tmproot = Path(tempfile.mkdtemp())
+            tmpratings = tmproot.joinpath('ratings.dat')
+            tmpitems = tmproot.joinpath('items.dat')
+            tmpfiles = {
+                'ratings': tmpratings,
+                'items': tmpitems
+            }
+            create_process_file(src_path=self.data_path, dst_path=tmpfiles)
+            folder_path.mkdir(parents=True)
+            shutil.move(str(tmpratings), str(folder_path))
+            shutil.move(str(tmpitems), str(folder_path))
+            shutil.rmtree(tmproot)
+            print()
+
     def maybe_download_raw_dataset(self):
         folder_path = self._get_rawdata_folder_path()
+        print("Folder path: ", folder_path)
         if folder_path.is_dir() and\
            all(folder_path.joinpath(filename).is_file() for filename in self.all_raw_file_names()):
             print('Raw data already exists. Skip downloading')
